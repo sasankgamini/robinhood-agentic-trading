@@ -1,0 +1,93 @@
+{
+  "account": {
+    "starting_cash": 650.0,
+    "base_currency": "USD",
+    "brokerage_account_number_env": "ROBINHOOD_ACCOUNT_NUMBER",
+    "agentic_account_last4": "YOUR_LAST4"
+  },
+  "mode": {
+    "live_trading_enabled": false,
+    "i_understand_risk": false,
+    "require_mcp_reconciliation": true
+  },
+  "risk": {
+    "max_daily_loss": 200.0,
+    "max_weekly_loss": 300.0,
+    "max_total_drawdown_pct": 45.0,
+    "max_position_pct": 25.0,
+    "max_symbol_allocation_pct": 30.0,
+    "max_open_positions": 3,
+    "risk_per_trade_pct": 3.0,
+    "options_max_premium_pct": 8.0,
+    "cooldown_after_loss_minutes": 120,
+    "kill_switch_file": "state/KILL_SWITCH_ON"
+  },
+  "execution": {
+    "market_hours_only": true,
+    "allow_overnight_equities": true,
+    "allow_weekend_crypto": false,
+    "default_order_type": "market",
+    "slippage_bps": 20
+  },
+  "research": {
+    "enable_live_news": true,
+    "free_sources_only": true,
+    "block_trade_on_high_impact_events": true,
+    "min_news_score": 0.15,
+    "rss_url_templates": [
+      "https://news.google.com/rss/search?q={symbol}%20stock%20when:1d&hl=en-US&gl=US&ceid=US:en"
+    ]
+  },
+  "notifications": {
+    "email_enabled": true,
+    "smtp_host_env": "SMTP_HOST",
+    "smtp_port_env": "SMTP_PORT",
+    "smtp_user_env": "SMTP_USER",
+    "smtp_password_env": "SMTP_PASSWORD",
+    "email_to_env": "TRADE_ALERT_EMAIL_TO",
+    "email_from_env": "TRADE_ALERT_EMAIL_FROM"
+  },
+  "strategy": {
+    "active": "leveraged_etf_swing",
+    "safe_mode": "cash_preservation",
+    "profiles": {
+      "aggressive_momentum_news": {
+        "symbols": ["NVDA", "TSLA", "AMD", "COIN", "META", "PLTR"],
+        "target_position_pct": 18.0,
+        "stop_loss_pct": 5.0,
+        "take_profit_pct": 10.0,
+        "trailing_stop_pct": 4.0,
+        "min_momentum_score": 0.65,
+        "max_volatility_pct": 8.0
+      },
+      "leveraged_etf_swing": {
+        "symbols": ["TQQQ", "SOXL", "UPRO", "SPXL"],
+        "target_position_pct": 20.0,
+        "stop_loss_pct": 6.0,
+        "take_profit_pct": 12.0,
+        "trailing_stop_pct": 5.0,
+        "min_momentum_score": 0.55,
+        "max_volatility_pct": 10.0
+      },
+      "options_speculation": {
+        "symbols": ["SPY", "QQQ", "NVDA", "TSLA"],
+        "target_position_pct": 8.0,
+        "stop_loss_pct": 35.0,
+        "take_profit_pct": 70.0,
+        "trailing_stop_pct": 25.0,
+        "min_momentum_score": 0.75,
+        "max_volatility_pct": 12.0,
+        "enabled_only_if_mcp_supports_options": true
+      },
+      "cash_preservation": {
+        "symbols": ["SGOV", "BIL"],
+        "target_position_pct": 15.0,
+        "stop_loss_pct": 1.0,
+        "take_profit_pct": 2.0,
+        "trailing_stop_pct": 0.75,
+        "min_momentum_score": 0.0,
+        "max_volatility_pct": 2.0
+      }
+    }
+  }
+}
