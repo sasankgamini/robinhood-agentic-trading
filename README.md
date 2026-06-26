@@ -28,27 +28,30 @@ This setup has four moving parts:
 
 The live workflow is agent-driven, not just a standalone Python bot. The Python CLI remains dry-run-safe by design; the Codex automation is the piece that can call Robinhood MCP live trading tools.
 
-Morning live trading flow:
+Morning research and live trading flow:
 
-1. At 6:35 AM America/Los_Angeles on weekdays, Codex starts the `Robinhood Agentic Morning Live Trade` automation locally.
-2. The automation uses `gpt-5-codex` and the guardrails in the automation prompt.
-3. It reads the configured Robinhood Agentic account`YOUR_LAST4` through Robinhood MCP.
-4. It checks portfolio value, buying power, current positions, recent agentic orders, tradability, and quotes.
-5. It researches current market context and symbol-specific news for `TQQQ`, `SOXL`, `UPRO`, and `SPXL`.
-6. It runs local preflight:
+1. At 6:45 AM America/Los_Angeles on weekdays, Codex starts the `Robinhood Agentic Morning Research Prep` automation locally.
+2. The research prep automation uses `gpt-5-codex`, reads Robinhood MCP data, researches market/news context, and writes a dated packet to `data/research/YYYY-MM-DD-morning.md`.
+3. The research packet includes account snapshot, quote table, broad market read, symbol-by-symbol bull/bear notes, risk flags, source links, suggested ranking, and `trade_bias`.
+4. At 7:00 AM America/Los_Angeles, Codex starts the `Robinhood Agentic Morning Live Trade` automation locally.
+5. The live trade automation reads the research packet first. If the packet is missing, stale, or says `trade_bias: skip`, it should skip unless it can independently complete equivalent current research.
+6. It reads the configured Robinhood Agentic account`YOUR_LAST4` through Robinhood MCP.
+7. It checks portfolio value, buying power, current positions, recent agentic orders, tradability, and quotes.
+8. It refreshes current market context and symbol-specific news for `TQQQ`, `SOXL`, `UPRO`, and `SPXL`.
+9. It runs local preflight:
 
 ```bash
 env PYTHONPATH=src python -m agentic_trader.cli preflight --config config/default.json
 ```
 
-7. It decides whether any long-only leveraged ETF trade fits the strategy and guardrails.
-8. For each candidate, it calls Robinhood `review_equity_order` first.
-9. Only if the review is clean, it may call `place_equity_order`.
-10. Afterward it reads portfolio/orders again and sends an email summary with trades, skipped candidates, reasons, risk checks, and research links.
+10. It decides whether any long-only leveraged ETF trade fits the strategy and guardrails.
+11. For each candidate, it calls Robinhood `review_equity_order` first.
+12. Only if the review is clean, it may call `place_equity_order`.
+13. Afterward it reads portfolio/orders again and sends an email summary with trades, skipped candidates, reasons, risk checks, and research links.
 
 Intraday risk flow:
 
-1. Every 30 minutes from 7:00 AM through 1:30 PM America/Los_Angeles on weekdays, Codex starts the `Robinhood Agentic Intraday Risk Monitor`.
+1. Every 30 minutes from 7:30 AM through 1:30 PM America/Los_Angeles on weekdays, Codex starts the `Robinhood Agentic Intraday Risk Monitor`.
 2. This monitor does not open new positions.
 3. It checks current positions and quotes through Robinhood MCP.
 4. It may exit strategy positions if a 6% stop loss, 12% take profit, or `$200` account drawdown condition is hit.
@@ -101,12 +104,14 @@ Real:
 - Robinhood MCP equity order placement from the live Codex automation.
 - Email alerts through SMTP.
 - RSS/news links when live research is enabled.
+- Daily research packets in `data/research/YYYY-MM-DD-morning.md`.
 
 Simulated/local:
 
 - `run-once` uses the local dry-run execution client.
 - `simulate` uses temporary local state.
 - Local `state/portfolio.json` is not the source of truth for real positions; Robinhood is.
+- Generated research packets are ignored by git unless intentionally copied into docs.
 
 Not currently supported for live trading in this setup:
 
@@ -206,18 +211,26 @@ The current `RobinhoodMcpExecutionClient` intentionally raises an error until th
 
 Codex has active local cron automations for the Agentic account.
 
+- `Robinhood Agentic Morning Research Prep`
+  - Schedule: weekday mornings at 6:45 AM America/Los_Angeles
+  - Model: `gpt-5-codex`
+  - Mode: research-only
+  - It writes a dated research packet to `data/research/YYYY-MM-DD-morning.md`.
+  - It must not place trades.
+
 - `Robinhood Agentic Morning Live Trade`
-  - Schedule: weekday mornings at 6:35 AM America/Los_Angeles
+  - Schedule: weekday mornings at 7:00 AM America/Los_Angeles
   - Model: `gpt-5-codex`
   - Mode: guarded live equities/ETF trading through Robinhood MCP
   - Account: configured Robinhood Agentic account`YOUR_LAST4`
   - Universe: `TQQQ`, `SOXL`, `UPRO`, `SPXL`
+  - It reads the morning research packet before trading.
   - Hard opening limits: max 3 symbols, max `$130` per symbol, max `$390` total deployed, keep roughly `$200` cash, no order under `$25`
   - It must call `review_equity_order` before any `place_equity_order`.
   - It must not call `place_option_order`.
 
 - `Robinhood Agentic Intraday Risk Monitor`
-  - Schedule: every 30 minutes from 7:00 AM through 1:30 PM America/Los_Angeles on weekdays
+  - Schedule: every 30 minutes from 7:30 AM through 1:30 PM America/Los_Angeles on weekdays
   - Mode: exits only, no new positions
   - Exit checks: 6% stop loss, 12% take profit, or `$200` account drawdown from the `$650` reference
 
