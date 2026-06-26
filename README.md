@@ -34,7 +34,7 @@ Morning live-entry research and trading flow:
 2. The automation uses `gpt-5-codex` and the guardrails in the automation prompt.
 3. It reads the configured Robinhood Agentic account`YOUR_LAST4` through Robinhood MCP.
 4. It checks portfolio value, buying power, current positions, recent agentic orders, tradability, and quotes.
-5. It researches current market context and symbol-specific news for `TQQQ`, `SOXL`, `UPRO`, and `SPXL` in the same model run that will make the trade decision.
+5. It researches current market context and symbol-specific news for the controlled expanded universe in the same model run that will make the trade decision.
 6. Before any order review or placement, it writes a live-entry audit note to `data/research/YYYY-MM-DD-live-entry.md`.
 7. The audit note includes timestamp, account snapshot, quote table, broad market read, symbol-by-symbol bull/bear notes, risk flags, source links, candidate ranking, skipped symbols, and the final trade/no-trade thesis.
 8. It records the thesis, candidates, skipped symbols, and final decision into `data/trading_journal.sqlite`.
@@ -67,7 +67,7 @@ Weekly strategy review flow:
 4. It must not edit config files or automation prompts.
 5. It reads Robinhood portfolio, orders, positions, and realized P/L through MCP.
 6. It reads recent events from `data/trading_journal.sqlite`.
-7. It reviews how the v1 leveraged ETF strategy performed during the week.
+7. It reviews how the controlled expanded momentum strategy performed during the week.
 8. It emails a strategy review with performance, risk, trade/order summary, open positions, research usefulness, and suggested changes.
 9. Recommended changes require a human follow-up before they are applied.
 
@@ -128,12 +128,22 @@ Not currently supported for live trading in this setup:
 
 ## Recommended Starting Strategy
 
-For a `$650` account, start with `leveraged_etf_swing` in dry-run:
+For a `$650` account, start with `expanded_momentum_guarded`:
 
-- Universe: `TQQQ`, `SOXL`, `UPRO`, `SPXL`
+- Core leveraged ETF universe: `TQQQ`, `UPRO`, `SPXL`, `SOXL`
+- Expanded ETF/ETN candidates: `TECL`, `FNGU`, `USD`, `BULZ`
+- Single-stock candidates: `NVDA`, `AMD`, `MSFT`, `META`, `GOOGL`, `AMZN`, `TSLA`, `COIN`, `PLTR`
+- Safe-mode candidates: `SGOV`, `BIL`, `SHV`
 - Target position: `20%`
 - Max allocation to one symbol: `30%`
 - Max open positions: `3`
+- Max new positions per day: `2`
+- Max leveraged ETF/ETN entry: `$130`
+- Max single-stock entry: `$90`
+- Max one single-stock entry at first
+- Max one position per exposure group
+- Max new deployed per morning: `$260`
+- Max total strategy exposure: about `$390`
 - Risk per trade: `3%` of equity
 - Stop loss: `6%`
 - Take profit: `12%`
@@ -142,13 +152,32 @@ For a `$650` account, start with `leveraged_etf_swing` in dry-run:
 
 Your requested `$200` daily and `$300` weekly limits are very aggressive for a `$650` account. The system honors them, but v1 still uses smaller position sizing so one bad idea does not immediately consume the entire daily limit.
 
+## Expanded Universe Rules
+
+The current strategy researches a wider list but trades narrowly. The point is to avoid forcing a trade into `TQQQ`, `SOXL`, `UPRO`, or `SPXL` when another liquid, Robinhood-supported candidate has cleaner momentum and more relevant research.
+
+Exposure groups:
+
+- Nasdaq/growth: `TQQQ`, `TECL`, `FNGU`, `BULZ`
+- S&P 500 broad market: `UPRO`, `SPXL`
+- Semiconductors: `SOXL`, `USD`, `NVDA`, `AMD`
+- Mega-cap growth: `MSFT`, `META`, `GOOGL`, `AMZN`, `TSLA`
+- Crypto beta: `COIN`
+- Speculative growth: `PLTR`
+- Safe mode: `SGOV`, `BIL`, `SHV`
+
+The morning live trade automation should usually place zero to two opening trades. It should not buy multiple symbols from the same exposure group in one morning, and it should not add a single-stock position unless the current research is directly relevant to that symbol. Safe-mode symbols are available when the market setup is weak and the best decision is capital preservation.
+
 ## Strategy Profiles
 
 `aggressive_momentum_news`
 : Single-name momentum/news strategy for volatile large caps. Highest upside and highest gap risk.
 
 `leveraged_etf_swing`
-: Recommended v1. Uses leveraged ETFs for aggressive exposure while avoiding single-company earnings blowups.
+: Original v1. Uses four leveraged ETFs for aggressive exposure while avoiding single-company earnings blowups.
+
+`expanded_momentum_guarded`
+: Current profile. Scores a wider, Robinhood-tradable universe but only trades the best one or two candidates after research, quote checks, account checks, and exposure-group limits. This gives the agent more flexibility without letting it stack redundant risk.
 
 `options_speculation`
 : Disabled for live use unless the Robinhood MCP exposes compliant options trading tools. Buying premium only; no short options.
@@ -267,11 +296,13 @@ Codex has active local cron automations for the Agentic account.
   - Model: `gpt-5-codex`
   - Mode: guarded live equities/ETF trading through Robinhood MCP
   - Account: configured Robinhood Agentic account`YOUR_LAST4`
-  - Universe: `TQQQ`, `SOXL`, `UPRO`, `SPXL`
+  - Universe: `TQQQ`, `UPRO`, `SPXL`, `SOXL`, `TECL`, `FNGU`, `USD`, `BULZ`, `NVDA`, `AMD`, `MSFT`, `META`, `GOOGL`, `AMZN`, `TSLA`, `COIN`, `PLTR`, `SGOV`, `BIL`, `SHV`
   - It performs fresh research in the same model run that makes the trade decision.
   - It writes a live-entry audit note to `data/research/YYYY-MM-DD-live-entry.md` before any order review or placement.
   - It records research, candidates, skipped trades, reviews, and order outcomes in `data/trading_journal.sqlite`.
-  - Hard opening limits: max 3 symbols, max `$130` per symbol, max `$390` total deployed, keep roughly `$200` cash, no order under `$25`
+  - Hard opening limits: max 2 new positions per morning, max `$130` per leveraged ETF/ETN, max `$90` per single stock, max `$260` new deployed per morning, max about `$390` total strategy exposure, keep roughly `$200` cash, no order under `$25`
+  - Diversification limits: do not buy redundant proxies in the same exposure group, such as both `UPRO` and `SPXL`; at most one single-stock entry until more live history exists.
+  - Single-stock entries require clearly relevant current research and must avoid known earnings-day entries unless explicitly approved.
   - It must call `review_equity_order` before any `place_equity_order`.
   - It must not call `place_option_order`.
 
@@ -302,10 +333,10 @@ That dry-run automation has been replaced by the guarded live workflow above.
 
 ## Current Robinhood Account Status
 
-The connected Agentic account currently supports this v1 universe as tradable equities/ETFs:
+The connected Agentic account currently supports this controlled expanded universe as tradable fractional equities/ETFs/ETNs:
 
 ```text
-TQQQ, SOXL, UPRO, SPXL
+TQQQ, UPRO, SPXL, SOXL, TECL, FNGU, USD, BULZ, NVDA, AMD, MSFT, META, GOOGL, AMZN, TSLA, COIN, PLTR, SGOV, BIL, SHV
 ```
 
 Options are not enabled on the Agentic account at the moment, even though another non-agentic account has options level 2. The bot therefore treats options as unavailable for live trading.
