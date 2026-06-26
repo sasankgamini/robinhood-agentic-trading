@@ -55,6 +55,17 @@ Intraday risk flow:
 5. It must call `review_equity_order` before any sell order.
 6. It sends an email only when it exits or detects a meaningful risk condition.
 
+Weekly strategy review flow:
+
+1. Every Friday at 2:00 PM America/Los_Angeles, Codex starts the `Robinhood Agentic Weekly Strategy Review`.
+2. This automation is analysis-only.
+3. It must not place trades.
+4. It must not edit config files or automation prompts.
+5. It reads Robinhood portfolio, orders, positions, and realized P/L through MCP.
+6. It reviews how the v1 leveraged ETF strategy performed during the week.
+7. It emails a strategy review with performance, risk, trade/order summary, open positions, research usefulness, and suggested changes.
+8. Recommended changes require a human follow-up before they are applied.
+
 ## What Makes The Decisions
 
 The live trade decision is made by the scheduled Codex agent using `gpt-5-codex`, constrained by:
@@ -66,6 +77,8 @@ The live trade decision is made by the scheduled Codex agent using `gpt-5-codex`
 - Robinhood pre-trade review results.
 
 The model is allowed to choose no trade. Skipping is expected if research fails, quotes are stale, Robinhood returns warnings, spreads look abnormal, the market context is unclear, or the guardrails would be exceeded.
+
+The model is not allowed to redesign or self-modify the strategy automatically. It can recommend changes in the weekly strategy review, but those changes should be applied only after you explicitly approve them.
 
 This is best described as an agentic trading workflow:
 
@@ -207,6 +220,12 @@ Codex has active local cron automations for the Agentic account.
   - Schedule: every 30 minutes from 7:00 AM through 1:30 PM America/Los_Angeles on weekdays
   - Mode: exits only, no new positions
   - Exit checks: 6% stop loss, 12% take profit, or `$200` account drawdown from the `$650` reference
+
+- `Robinhood Agentic Weekly Strategy Review`
+  - Schedule: Fridays at 2:00 PM America/Los_Angeles
+  - Mode: analysis-only
+  - It reviews weekly P/L, drawdown, orders, open positions, research usefulness, and suggested strategy changes.
+  - It must not place trades or change strategy by itself.
 
 The local Python CLI remains dry-run-safe. Live trading is currently performed only by the Codex automation using Robinhood MCP tools.
 
