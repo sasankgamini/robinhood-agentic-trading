@@ -5,3 +5,5 @@ logs/
 state/
 .env
 data/research/*.md
+data/*.sqlite
+data/*.sqlite-*

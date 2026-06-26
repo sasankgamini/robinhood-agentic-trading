@@ -37,16 +37,17 @@ Morning live-entry research and trading flow:
 5. It researches current market context and symbol-specific news for `TQQQ`, `SOXL`, `UPRO`, and `SPXL` in the same model run that will make the trade decision.
 6. Before any order review or placement, it writes a live-entry audit note to `data/research/YYYY-MM-DD-live-entry.md`.
 7. The audit note includes timestamp, account snapshot, quote table, broad market read, symbol-by-symbol bull/bear notes, risk flags, source links, candidate ranking, skipped symbols, and the final trade/no-trade thesis.
-8. It runs local preflight:
+8. It records the thesis, candidates, skipped symbols, and final decision into `data/trading_journal.sqlite`.
+9. It runs local preflight:
 
 ```bash
 env PYTHONPATH=src python -m agentic_trader.cli preflight --config config/default.json
 ```
 
-9. It decides whether any long-only leveraged ETF trade fits the strategy and guardrails.
-10. For each candidate, it calls Robinhood `review_equity_order` first.
-11. Only if the review is clean, it may call `place_equity_order`.
-12. Afterward it reads portfolio/orders again and sends an email summary with trades, skipped candidates, reasons, risk checks, research links, and the audit note path.
+10. It decides whether any long-only leveraged ETF trade fits the strategy and guardrails.
+11. For each candidate, it calls Robinhood `review_equity_order` first.
+12. Only if the review is clean, it may call `place_equity_order`.
+13. Afterward it reads portfolio/orders again, records order outcomes in the journal, and sends an email summary with trades, skipped candidates, reasons, risk checks, research links, and the audit note path.
 
 Intraday risk flow:
 
@@ -55,7 +56,8 @@ Intraday risk flow:
 3. It checks current positions and quotes through Robinhood MCP.
 4. It may exit strategy positions if a 6% stop loss, 12% take profit, or `$200` account drawdown condition is hit.
 5. It must call `review_equity_order` before any sell order.
-6. It sends an email only when it exits or detects a meaningful risk condition.
+6. It records position/risk checks and exit decisions in `data/trading_journal.sqlite`.
+7. It sends an email only when it exits or detects a meaningful risk condition.
 
 Weekly strategy review flow:
 
@@ -64,9 +66,10 @@ Weekly strategy review flow:
 3. It must not place trades.
 4. It must not edit config files or automation prompts.
 5. It reads Robinhood portfolio, orders, positions, and realized P/L through MCP.
-6. It reviews how the v1 leveraged ETF strategy performed during the week.
-7. It emails a strategy review with performance, risk, trade/order summary, open positions, research usefulness, and suggested changes.
-8. Recommended changes require a human follow-up before they are applied.
+6. It reads recent events from `data/trading_journal.sqlite`.
+7. It reviews how the v1 leveraged ETF strategy performed during the week.
+8. It emails a strategy review with performance, risk, trade/order summary, open positions, research usefulness, and suggested changes.
+9. Recommended changes require a human follow-up before they are applied.
 
 ## What Makes The Decisions
 
@@ -104,6 +107,7 @@ Real:
 - Email alerts through SMTP.
 - RSS/news links when live research is enabled.
 - Daily live-entry research/thesis notes in `data/research/YYYY-MM-DD-live-entry.md`.
+- Structured trading journal in `data/trading_journal.sqlite`.
 
 Simulated/local:
 
@@ -111,6 +115,7 @@ Simulated/local:
 - `simulate` uses temporary local state.
 - Local `state/portfolio.json` is not the source of truth for real positions; Robinhood is.
 - Generated research/thesis notes are ignored by git unless intentionally copied into docs.
+- The SQLite journal is ignored by git because it is runtime account/trading data.
 
 Not currently supported for live trading in this setup:
 
@@ -171,6 +176,49 @@ Use preflight before any scheduled run:
 env PYTHONPATH=src python -m agentic_trader.cli preflight --config config/default.json
 ```
 
+## Trading Journal
+
+The local journal stores the bot's operational memory:
+
+```text
+data/trading_journal.sqlite
+```
+
+It is a SQLite database with timestamped events such as:
+
+- account snapshots
+- research/thesis summaries
+- candidate trades
+- skipped trades
+- Robinhood order reviews
+- placed orders
+- intraday risk checks
+- exits
+- weekly review recommendations
+
+Initialize it manually:
+
+```bash
+env PYTHONPATH=src python -m agentic_trader.cli journal-init --config config/default.json
+```
+
+Record a manual event:
+
+```bash
+env PYTHONPATH=src python -m agentic_trader.cli journal-record --config config/default.json \
+  --event-type note \
+  --source manual \
+  --payload-json '{"summary":"manual note"}'
+```
+
+Summarize recent events:
+
+```bash
+env PYTHONPATH=src python -m agentic_trader.cli journal-summary --config config/default.json --limit 20
+```
+
+The automations are instructed to write to this journal. It improves auditability and lets future strategy reviews compare the bot's original thesis against what happened later. Robinhood remains the source of truth for actual orders, positions, and P/L.
+
 ## Keep The Laptop Awake
 
 The Codex automations run locally, so the laptop must stay awake and online during trading hours. To keep macOS awake, open a terminal and run:
@@ -222,6 +270,7 @@ Codex has active local cron automations for the Agentic account.
   - Universe: `TQQQ`, `SOXL`, `UPRO`, `SPXL`
   - It performs fresh research in the same model run that makes the trade decision.
   - It writes a live-entry audit note to `data/research/YYYY-MM-DD-live-entry.md` before any order review or placement.
+  - It records research, candidates, skipped trades, reviews, and order outcomes in `data/trading_journal.sqlite`.
   - Hard opening limits: max 3 symbols, max `$130` per symbol, max `$390` total deployed, keep roughly `$200` cash, no order under `$25`
   - It must call `review_equity_order` before any `place_equity_order`.
   - It must not call `place_option_order`.
@@ -230,11 +279,12 @@ Codex has active local cron automations for the Agentic account.
   - Schedule: every 30 minutes from 7:30 AM through 1:30 PM America/Los_Angeles on weekdays
   - Mode: exits only, no new positions
   - Exit checks: 6% stop loss, 12% take profit, or `$200` account drawdown from the `$650` reference
+  - It records position checks and exit decisions in `data/trading_journal.sqlite`.
 
 - `Robinhood Agentic Weekly Strategy Review`
   - Schedule: Fridays at 2:00 PM America/Los_Angeles
   - Mode: analysis-only
-  - It reviews weekly P/L, drawdown, orders, open positions, research usefulness, and suggested strategy changes.
+  - It reviews weekly P/L, drawdown, orders, open positions, journal events, research usefulness, and suggested strategy changes.
   - It must not place trades or change strategy by itself.
 
 The local Python CLI remains dry-run-safe. Live trading is currently performed only by the Codex automation using Robinhood MCP tools.

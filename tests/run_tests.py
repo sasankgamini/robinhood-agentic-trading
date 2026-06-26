@@ -1,5 +1,8 @@
 from agentic_trader.models import Portfolio, Quote, Signal, SignalAction
+from agentic_trader.journal import init_journal, record_event, summarize
 from agentic_trader.risk import RiskManager
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 
 def risk_config() -> dict:
@@ -34,7 +37,24 @@ def test_risk_sizes_order_by_stop_risk() -> None:
     assert decision.order.quantity <= 1.3
 
 
+def test_journal_records_and_summarizes_events() -> None:
+    with TemporaryDirectory() as tmp:
+        path = Path(tmp) / "journal.sqlite"
+        init_journal(path)
+        event_id = record_event(
+            path,
+            event_type="trade_decision",
+            source="test",
+            payload={"symbol": "UPRO", "decision": "buy starter position"},
+        )
+        summary = summarize(path)
+        assert event_id == 1
+        assert summary["event_counts"]["trade_decision"] == 1
+        assert summary["recent_events"][0]["summary"] == "buy starter position"
+
+
 if __name__ == "__main__":
     test_risk_blocks_daily_loss_limit()
     test_risk_sizes_order_by_stop_risk()
-    print("2 tests passed")
+    test_journal_records_and_summarizes_events()
+    print("3 tests passed")
