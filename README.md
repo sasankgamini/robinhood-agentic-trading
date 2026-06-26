@@ -154,6 +154,16 @@ Use preflight before any scheduled run:
 env PYTHONPATH=src python -m agentic_trader.cli preflight --config config/default.json
 ```
 
+## Keep The Laptop Awake
+
+The Codex automations run locally, so the laptop must stay awake and online during trading hours. To keep macOS awake, open a terminal and run:
+
+```bash
+caffeinate -dimsu
+```
+
+Leave that terminal window open while you want the automations to run. Stop it with `Ctrl-C` when you no longer need the laptop held awake.
+
 ## Kill Switch
 
 Create this file to block new trades:
