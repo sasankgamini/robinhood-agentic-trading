@@ -44,7 +44,9 @@ Morning live-entry research and trading flow:
 env PYTHONPATH=src python -m agentic_trader.cli preflight --config config/default.json
 ```
 
-10. It decides whether any long-only leveraged ETF trade fits the strategy and guardrails.
+The local Python CLI is intentionally dry-run-safe, so preflight may report `mode=dry-run`, `live_trading_enabled=false`, `i_understand_risk=false`, or `ready_for_live_orders=false`. Those are expected local-CLI safety signals and should not block the Codex MCP live automation by themselves. The live automation should block only on real operational problems such as a kill switch, malformed config, failed local paths, wrong strategy/account setup, or Robinhood MCP warnings.
+
+10. It decides whether any long-only equity/ETF trade fits the strategy and guardrails.
 11. For each candidate, it calls Robinhood `review_equity_order` first.
 12. Only if the review is clean, it may call `place_equity_order`.
 13. Afterward it reads portfolio/orders again, records order outcomes in the journal, and sends an email summary with trades, skipped candidates, reasons, risk checks, research links, and the audit note path.
@@ -268,18 +270,19 @@ state/KILL_SWITCH_ON
 
 ## Live Trading Gates
 
-Live trading must remain disabled until all of these are true:
+There are two separate execution paths:
+
+- Local Python CLI: dry-run-safe by design. It should keep `live_trading_enabled=false` unless a real broker adapter is implemented later.
+- Codex MCP automation: the current live path. It can place live trades directly through Robinhood MCP after account checks, research, audit logging, and `review_equity_order`.
+
+Codex MCP live trading should remain disabled until all of these are true:
 
 - The Robinhood MCP is connected in Codex.
 - MCP tool support is verified for the intended instrument type.
 - Portfolio/position reconciliation works.
 - Dry-run logs show sane orders, exposure, P/L, and risk decisions.
-- `config/default.json` has both:
-
-```json
-"live_trading_enabled": true,
-"i_understand_risk": true
-```
+- The live automation prompt explicitly authorizes autonomous trading and hard guardrails.
+- The account is confirmed as `agentic_allowed=true`.
 
 The current `RobinhoodMcpExecutionClient` intentionally raises an error until the live tool mapping is implemented.
 
