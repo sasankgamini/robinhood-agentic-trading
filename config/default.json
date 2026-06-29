@@ -121,7 +121,15 @@
         "min_order_notional": 25.0,
         "keep_cash_buffer": 200.0,
         "avoid_earnings_day_entries": true,
-        "require_clear_research_for_single_stock": true
+        "require_clear_research_for_single_stock": true,
+        "holdings_review_enabled": true,
+        "allow_add_to_existing": true,
+        "max_add_to_existing_notional": 60.0,
+        "min_add_to_existing_notional": 25.0,
+        "allow_thesis_invalidation_exit": true,
+        "trim_on_thesis_deterioration_pct": 50.0,
+        "underperformance_exit_threshold_pct": 4.0,
+        "thesis_review_benchmarks": ["SPY", "QQQ"]
       },
       "options_speculation": {
         "symbols": ["SPY", "QQQ", "NVDA", "TSLA"],

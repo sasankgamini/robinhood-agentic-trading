@@ -51,15 +51,24 @@ The local Python CLI is intentionally dry-run-safe, so preflight may report `mod
 12. Only if the review is clean, it may call `place_equity_order`.
 13. Afterward it reads portfolio/orders again, records order outcomes in the journal, and sends an email summary with trades, skipped candidates, reasons, risk checks, research links, and the audit note path.
 
+Morning holdings review:
+
+- Before choosing new buys, the live automation reviews current holdings and their original journaled thesis.
+- It researches holding-specific news, catalysts, negative headlines, and benchmark context.
+- It decides whether each holding should be held, trimmed, exited, or cautiously added to.
+- Add-to-existing is allowed only when the original thesis is still valid, current research is supportive, exposure caps allow it, and the add is small.
+- It should not average up or down mechanically. Any add must be thesis-driven and stay within the configured notional/exposure caps.
+
 Intraday risk flow:
 
-1. Every 30 minutes from 7:30 AM through 1:30 PM America/Los_Angeles on weekdays, Codex starts the `Robinhood Agentic Intraday Risk Monitor`.
+1. Every 30 minutes from 8:45 AM through 1:30 PM America/Los_Angeles on weekdays, Codex starts the `Robinhood Agentic Intraday Risk Monitor`.
 2. This monitor does not open new positions.
 3. It checks current positions and quotes through Robinhood MCP.
-4. It may exit strategy positions if a 6% stop loss, 12% take profit, or `$200` account drawdown condition is hit.
-5. It must call `review_equity_order` before any sell order.
-6. It records position/risk checks and exit decisions in `data/trading_journal.sqlite`.
-7. It sends an email only when it exits or detects a meaningful risk condition.
+4. It reviews current holdings against their original thesis, holding-specific research, and account risk.
+5. It may exit strategy positions if a 6% stop loss, 12% take profit, `$200` account drawdown condition, or clear thesis-invalidation condition is hit.
+6. It must call `review_equity_order` before any sell order.
+7. It records position/risk checks and exit decisions in `data/trading_journal.sqlite`.
+8. It sends an email only when it exits or detects a meaningful risk condition.
 
 Weekly strategy review flow:
 
@@ -169,6 +178,8 @@ Exposure groups:
 - Safe mode: `SGOV`, `BIL`, `SHV`
 
 The morning live trade automation should usually place zero to two opening trades. It should not buy multiple symbols from the same exposure group in one morning, and it should not add a single-stock position unless the current research is directly relevant to that symbol. Safe-mode symbols are available when the market setup is weak and the best decision is capital preservation.
+
+Existing holdings are researched separately from new candidates. The bot should be able to say why each current holding is still valid, invalidated, worth trimming, or worth a small add. For holdings, the default is not to churn. It should hold through normal noise, sell on hard risk triggers, and only trim/exit early when the original thesis is clearly broken or risk concentration becomes unacceptable.
 
 ## Strategy Profiles
 
@@ -301,18 +312,21 @@ Codex has active local cron automations for the Agentic account.
   - Account: configured Robinhood Agentic account`YOUR_LAST4`
   - Universe: `TQQQ`, `UPRO`, `SPXL`, `SOXL`, `TECL`, `FNGU`, `USD`, `BULZ`, `NVDA`, `AMD`, `MSFT`, `META`, `GOOGL`, `AMZN`, `TSLA`, `COIN`, `PLTR`, `SGOV`, `BIL`, `SHV`
   - It performs fresh research in the same model run that makes the trade decision.
+  - It researches existing holdings and their original thesis before looking for new entries.
   - It writes a live-entry audit note to `data/research/YYYY-MM-DD-live-entry.md` before any order review or placement.
   - It records research, candidates, skipped trades, reviews, and order outcomes in `data/trading_journal.sqlite`.
   - Hard opening limits: max 2 new positions per morning, max `$130` per leveraged ETF/ETN, max `$90` per single stock, max `$260` new deployed per morning, max about `$390` total strategy exposure, keep roughly `$200` cash, no order under `$25`
+  - Add-to-existing limits: only when thesis is reinforced, max `$60` add, and all exposure/cash caps remain satisfied.
   - Diversification limits: do not buy redundant proxies in the same exposure group, such as both `UPRO` and `SPXL`; at most one single-stock entry until more live history exists.
   - Single-stock entries require clearly relevant current research and must avoid known earnings-day entries unless explicitly approved.
   - It must call `review_equity_order` before any `place_equity_order`.
   - It must not call `place_option_order`.
 
 - `Robinhood Agentic Intraday Risk Monitor`
-  - Schedule: every 30 minutes from 7:30 AM through 1:30 PM America/Los_Angeles on weekdays
-  - Mode: exits only, no new positions
-  - Exit checks: 6% stop loss, 12% take profit, or `$200` account drawdown from the `$650` reference
+  - Schedule: every 30 minutes from 8:45 AM through 1:30 PM America/Los_Angeles on weekdays
+  - Mode: exits/holds only, no new positions
+  - Exit checks: 6% stop loss, 12% take profit, `$200` account drawdown from the `$650` reference, or clear thesis invalidation
+  - It researches current holdings when there is a position-specific risk question, not just general market context.
   - It records position checks and exit decisions in `data/trading_journal.sqlite`.
 
 - `Robinhood Agentic Weekly Strategy Review`
