@@ -129,7 +129,21 @@
         "allow_thesis_invalidation_exit": true,
         "trim_on_thesis_deterioration_pct": 50.0,
         "underperformance_exit_threshold_pct": 4.0,
-        "thesis_review_benchmarks": ["SPY", "QQQ"]
+        "thesis_review_benchmarks": ["SPY", "QQQ"],
+        "intraday_opportunity_enabled": true,
+        "intraday_opportunity_time_local": "10:30",
+        "max_intraday_buy_orders": 1,
+        "max_intraday_new_notional": 75.0,
+        "max_intraday_add_notional": 50.0,
+        "max_intraday_total_deployed": 75.0,
+        "max_daily_buy_orders_all_sessions": 3,
+        "require_intraday_research_confluence": true,
+        "min_intraday_data_points": 4,
+        "allow_intraday_research_based_buy": true,
+        "allow_intraday_research_based_trim_or_exit": true,
+        "block_same_exposure_group_after_stop_loss": true,
+        "no_reentry_same_symbol_after_stop_today": true,
+        "require_account_flat_or_green_for_correlated_intraday_buy": true
       },
       "options_speculation": {
         "symbols": ["SPY", "QQQ", "NVDA", "TSLA"],

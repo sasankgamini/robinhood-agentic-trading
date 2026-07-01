@@ -70,6 +70,19 @@ Intraday risk flow:
 7. It records position/risk checks and exit decisions in `data/trading_journal.sqlite`.
 8. It sends an email only when it exits or detects a meaningful risk condition.
 
+Midday opportunity flow:
+
+1. Around 10:30 AM America/Los_Angeles on weekdays, Codex starts the `Robinhood Agentic Midday Opportunity Scan`.
+2. This is the only intraday automation that may open or add to a position.
+3. It first reads the current account, current holdings, recent orders, same-day stops/exits, buying power, quote data, tradability, and recent journal events.
+4. It uses Robinhood MCP read-only data wherever available, including quote/market data, portfolio/order data, tradability, and any additional MCP-provided fundamentals, analyst, ratings, news, or event data exposed by the connected tools.
+5. It also performs fresh web/news research for current holdings and the controlled universe.
+6. It may place at most one buy/add order, capped at `$75` total midday deployment and `$50` for adding to an existing position.
+7. It may also trim or exit if fresh research or MCP data shows a severe adverse event, thesis invalidation, abnormal market behavior, or a hard risk trigger.
+8. It must not re-enter the same symbol after a same-day stop-loss, and it should not enter the same exposure group after a stop-loss unless the new trade is clearly uncorrelated and risk-reducing.
+9. If the account is red on the day, correlated intraday buys require an unusually strong, directly relevant setup; otherwise the scan should hold cash.
+10. Every decision is recorded in `data/trading_journal.sqlite` and, when possible, summarized by email.
+
 Weekly strategy review flow:
 
 1. Every Friday at 2:00 PM America/Los_Angeles, Codex starts the `Robinhood Agentic Weekly Strategy Review`.
@@ -151,6 +164,9 @@ For a `$650` account, start with `expanded_momentum_guarded`:
 - Max new positions per day: `2`
 - Max leveraged ETF/ETN entry: `$130`
 - Max single-stock entry: `$90`
+- Max intraday opportunity buy/add orders: `1`
+- Max intraday opportunity deployed: `$75`
+- Max intraday add to existing position: `$50`
 - Max one single-stock entry at first
 - Max one position per exposure group
 - Max new deployed per morning: `$260`
@@ -180,6 +196,10 @@ Exposure groups:
 The morning live trade automation should usually place zero to two opening trades. It should not buy multiple symbols from the same exposure group in one morning, and it should not add a single-stock position unless the current research is directly relevant to that symbol. Safe-mode symbols are available when the market setup is weak and the best decision is capital preservation.
 
 Existing holdings are researched separately from new candidates. The bot should be able to say why each current holding is still valid, invalidated, worth trimming, or worth a small add. For holdings, the default is not to churn. It should hold through normal noise, sell on hard risk triggers, and only trim/exit early when the original thesis is clearly broken or risk concentration becomes unacceptable.
+
+The midday scan gives the bot more flexibility, but it is intentionally narrower than the morning run. It is allowed to buy only when current Robinhood MCP data, price action, account state, and fresh research line up. It is not allowed to replace a stopped-out semiconductor trade with another semiconductor trade just because the symbol is moving. After a stop-loss, the same symbol is blocked for the rest of the day, and the same exposure group should be avoided unless the trade is genuinely uncorrelated or reduces portfolio risk.
+
+Research-driven intraday exits are allowed. Examples include a severe company-specific adverse event, a thesis-breaking regulatory/legal headline, an earnings or guidance shock, a trading halt/stale quote/rejection-risk path, or material benchmark underperformance after the original catalyst disappears. Ordinary volatility is not enough by itself.
 
 ## Strategy Profiles
 
@@ -319,6 +339,18 @@ Codex has active local cron automations for the Agentic account.
   - Add-to-existing limits: only when thesis is reinforced, max `$60` add, and all exposure/cash caps remain satisfied.
   - Diversification limits: do not buy redundant proxies in the same exposure group, such as both `UPRO` and `SPXL`; at most one single-stock entry until more live history exists.
   - Single-stock entries require clearly relevant current research and must avoid known earnings-day entries unless explicitly approved.
+  - It must call `review_equity_order` before any `place_equity_order`.
+  - It must not call `place_option_order`.
+
+- `Robinhood Agentic Midday Opportunity Scan`
+  - Schedule: weekday late morning, around 10:30 AM America/Los_Angeles
+  - Model: `gpt-5-codex`
+  - Mode: guarded live equities/ETF opportunity scan through Robinhood MCP
+  - It can buy/add at most once per run, with max `$75` total midday deployment and max `$50` add-to-existing.
+  - It can also trim or exit when hard risk rules or severe research/data-driven thesis invalidation triggers.
+  - It must read current holdings, current account value, same-day orders, same-day stop-losses, quotes, tradability, and recent journal events before deciding.
+  - It should use all relevant read-only Robinhood MCP data exposed by the connected tools, plus fresh web/news research.
+  - It must not re-enter the same symbol after a same-day stop-loss.
   - It must call `review_equity_order` before any `place_equity_order`.
   - It must not call `place_option_order`.
 
